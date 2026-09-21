@@ -309,12 +309,11 @@ pub fn run() -> Result<()> {
             .as_ref()
             .and_then(|p| p.file_stem().map(|stem| (p, stem.to_string_lossy().into_owned())))
             .and_then(|(p, stem)| {
-                std::path::absolute(p)
-                    .ok()
-                    .map(|abs| abs.with_file_name(format!("{stem}.txt")))
+                let name = export::logo_file_name(&stem);
+                std::path::absolute(p).ok().map(|abs| abs.with_file_name(name))
             })
             .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "logo.txt".to_owned()),
+            .unwrap_or_else(|| export::logo_file_name("logo")),
         background: args
             .background
             .as_deref()

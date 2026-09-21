@@ -5,6 +5,7 @@ pub mod ansi;
 pub mod fastfetch;
 pub mod html;
 pub mod lua;
+pub mod plain;
 pub mod png;
 pub mod svg;
 
@@ -13,8 +14,11 @@ use clap::ValueEnum;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Format {
-    /// Plain text with embedded SGR escapes — `fastfetch --logo`, terminal `cat`.
+    /// Plain text with embedded SGR escapes — `fastfetch --file`, terminal `cat`.
     Ansi,
+    /// The characters alone, with no escape sequences. For anywhere that would
+    /// print an escape as literal garbage: a commit message, a README, a chat.
+    Plain,
     /// Lua module with highlight groups, for a Neovim dashboard.
     Lua,
     /// Rasterized image of the artwork.
@@ -28,8 +32,9 @@ pub enum Format {
 }
 
 impl Format {
-    pub const ALL: [Format; 6] = [
+    pub const ALL: [Format; 7] = [
         Format::Ansi,
+        Format::Plain,
         Format::Lua,
         Format::Fastfetch,
         Format::Png,
@@ -39,7 +44,10 @@ impl Format {
 
     pub fn extension(self) -> &'static str {
         match self {
-            Format::Ansi => "txt",
+            // Not `txt`: a file full of escape sequences is not plain text, and
+            // the plain format below wants that name.
+            Format::Ansi => "ansi",
+            Format::Plain => "txt",
             // JSONC, which is what fastfetch's own generated config uses.
             Format::Fastfetch => "jsonc",
             Format::Lua => "lua",
@@ -84,6 +92,15 @@ impl Default for Options {
     }
 }
 
+/// Filename of the ANSI logo a fastfetch config points at.
+///
+/// Shared so the name the config writes and the name that actually gets written
+/// cannot drift apart — and so the extension matches what the ANSI format would
+/// have suggested, rather than being `.txt` in one place and `.ansi` in another.
+pub fn logo_file_name(stem: &str) -> String {
+    format!("{stem}.{}", Format::Ansi.extension())
+}
+
 /// Files an export needs written alongside it, as `(path, bytes)`.
 ///
 /// A fastfetch config is useless without the logo it points at, and asking the
@@ -97,8 +114,7 @@ pub fn companions(
 ) -> Vec<(std::path::PathBuf, Vec<u8>)> {
     match format {
         Format::Fastfetch => {
-            // The config's `source` is a bare filename resolved next to it.
-            let sibling = path.with_file_name(format!("{}.txt", opts.logo_name));
+            let sibling = path.with_file_name(logo_file_name(&opts.logo_name));
             let ansi = ansi::export(art, &ansi::Options {
                 color: opts.color,
                 xterm256: opts.xterm256,
@@ -118,6 +134,7 @@ pub fn export(art: &Artwork, format: Format, opts: &Options) -> anyhow::Result<V
             xterm256: opts.xterm256,
         })
         .into_bytes()),
+        Format::Plain => Ok(plain::export(art).into_bytes()),
         Format::Lua => Ok(lua::export(art).into_bytes()),
         Format::Fastfetch => Ok(fastfetch::export(art, opts).into_bytes()),
         Format::Png => png::export(art, &png::Options {
@@ -158,7 +175,7 @@ mod tests {
         let art = Artwork::from_lines(["ab"]);
         let opts = Options {
             logo_name: "wart".to_owned(),
-            logo_source: "C:/somewhere/wart.txt".to_owned(),
+            logo_source: "C:/somewhere/wart.ansi".to_owned(),
             ..Default::default()
         };
         let path = std::path::Path::new("/tmp/wart.jsonc");
@@ -166,12 +183,13 @@ mod tests {
         let companions = companions(&art, Format::Fastfetch, &opts, path);
         let (companion, data) = &companions[0];
 
-        // The companion is named from the config it sits beside.
-        assert_eq!(companion, std::path::Path::new("/tmp/wart.txt"));
+        // The companion is named from the config it sits beside, with the ANSI
+        // format's extension rather than `.txt`.
+        assert_eq!(companion, std::path::Path::new("/tmp/wart.ansi"));
         // ...and the config points wherever `logo_source` says, which is an
         // absolute path by the time a file is actually written.
         let config = String::from_utf8(export(&art, Format::Fastfetch, &opts).unwrap()).unwrap();
-        assert!(config.contains("\"source\": \"C:/somewhere/wart.txt\""));
+        assert!(config.contains("\"source\": \"C:/somewhere/wart.ansi\""));
         assert!(!data.is_empty());
     }
 

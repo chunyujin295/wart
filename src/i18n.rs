@@ -138,12 +138,14 @@ impl Strings {
     pub fn format(&self, f: Format) -> &'static str {
         match (self.is_zh(), f) {
             (false, Format::Ansi) => "ANSI text",
+            (false, Format::Plain) => "Plain text",
             (false, Format::Lua) => "Neovim Lua",
             (false, Format::Png) => "PNG",
             (false, Format::Fastfetch) => "fastfetch config",
             (false, Format::Html) => "HTML",
             (false, Format::Svg) => "SVG",
             (true, Format::Ansi) => "ANSI 文本",
+            (true, Format::Plain) => "纯文本",
             (true, Format::Lua) => "Neovim Lua",
             (true, Format::Png) => "PNG 图片",
             (true, Format::Fastfetch) => "fastfetch 配置",

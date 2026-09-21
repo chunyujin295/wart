@@ -313,7 +313,7 @@ impl WartApp {
             xterm256: false,
             background: self.background_rgb(),
             logo_name: logo_name.to_owned(),
-            logo_source: format!("{logo_name}.txt"),
+            logo_source: export::logo_file_name(logo_name),
         }
     }
 
@@ -353,9 +353,10 @@ impl WartApp {
         let mut opts = self.export_options(&stem);
         // fastfetch resolves a relative source against its working directory,
         // not the config's, so a saved config has to spell the path out.
+        let logo_file = export::logo_file_name(&stem);
         opts.logo_source = std::path::absolute(path)
-            .map(|p| p.with_file_name(format!("{stem}.txt")))
-            .unwrap_or_else(|_| std::path::PathBuf::from(format!("{stem}.txt")))
+            .map(|p| p.with_file_name(&logo_file))
+            .unwrap_or_else(|_| std::path::PathBuf::from(&logo_file))
             .to_string_lossy()
             .into_owned();
         let bytes = export::export(&art, self.format, &opts)?;

@@ -109,20 +109,19 @@ font list alongside the 328 built-in ones. Run `wart --list-fonts` to confirm.
         New-Item -ItemType Directory -Force -Path $samples | Out-Null
         $w = Join-Path $dist 'wart.exe'
 
-        & $w --text 'WART' --font standard --format ansi --out (Join-Path $samples 'banner.txt')
+        & $w --text 'WART' --font standard --format ansi --out (Join-Path $samples 'banner.ansi')
+        & $w --text 'WART' --font standard --format plain --out (Join-Path $samples 'banner-plain.txt')
         & $w --text "HELLO,`nDEBIAN" --font 'ANSI Shadow' --gradient '#ff5f5f,#ffd75f' `
-             --format ansi --out (Join-Path $samples 'ansi-shadow.txt')
+             --format ansi --out (Join-Path $samples 'ansi-shadow.ansi')
         & $w --text "HELLO,`nDEBIAN" --font graffiti --gradient '#00d4ff,#ff00d4' `
-             --format ansi --out (Join-Path $samples 'graffiti.txt')
+             --format ansi --out (Join-Path $samples 'graffiti.ansi')
         & $w --text 'WART' --mode block --charset braille --cols 90 --rainbow `
-             --format ansi --out (Join-Path $samples 'braille-rainbow.txt')
+             --format ansi --out (Join-Path $samples 'braille-rainbow.ansi')
         & $w --text "$([char]0xeb99) WART" --font big --gradient '#00d4ff,#ff00d4' `
              --frame rounded --frame-padding 1 --background '#101014' `
              --format png --out (Join-Path $samples 'icon-and-banner.png')
         & $w --text 'WART' --font slant --frame powerline --gradient '#00d4ff,#ff00d4' `
              --format lua --out (Join-Path $samples 'nvim-logo.lua')
-        & $w --text 'WART' --font big --gradient '#00d4ff,#ff00d4' `
-             --format ansi --out (Join-Path $samples 'fastfetch-logo.txt')
         & $w --text 'WART' --font big --gradient '#00d4ff,#ff00d4' `
              --format fastfetch --out (Join-Path $samples 'fastfetch-logo.jsonc')
         & $w --text 'WART' --mode block --charset halfblock --cols 70 `

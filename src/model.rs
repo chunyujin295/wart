@@ -174,9 +174,8 @@ impl Artwork {
 
     /// The whole artwork with no color and no escape sequences.
     ///
-    /// Used by the tests to assert on shapes, and handy for debugging; the
-    /// exporters all go through `row_segments` instead.
-    #[allow(dead_code)]
+    /// The plain-text exporter is built on this; the others go through
+    /// `row_segments`.
     pub fn to_plain_string(&self) -> String {
         let mut out = String::new();
         for (i, row) in self.cells.iter().enumerate() {

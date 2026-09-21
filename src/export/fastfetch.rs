@@ -11,8 +11,19 @@
 use crate::export::Options;
 use crate::model::Artwork;
 
+/// Make a path safe to put inside a JSON string.
+///
+/// A Windows path is full of backslashes, and `\C`, `\w` and friends are not
+/// valid JSON escapes — fastfetch rejects the whole file with "invalid escaped
+/// sequence in string". Forward slashes are accepted by both JSON and Windows,
+/// so they are the simplest thing that works everywhere.
+fn json_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
 pub fn export(art: &Artwork, opts: &Options) -> String {
-    let logo_file = &opts.logo_source;
+    let logo_file = json_path(&opts.logo_source);
+    let logo_file = logo_file.as_str();
     let uses_background = art.cells.iter().flatten().any(|c| c.bg.is_some());
 
     let mut out = String::new();
@@ -24,8 +35,9 @@ pub fn export(art: &Artwork, opts: &Options) -> String {
     out.push_str("//                   ~/.config/fastfetch/config.jsonc\n");
     out.push_str("//\n");
     out.push_str(&format!(
-        "// Either way, keep {logo_file} next to this file, or make \"source\"\n\
-         // an absolute path.\n"
+        "// The logo it points at was written alongside this file:\n\
+         //   {logo_file}\n\
+         // Move one and the other has to be updated to match.\n"
     ));
     out.push_str("//\n");
     out.push_str("// The logo is read as text, so the colours in it need a terminal\n");
@@ -93,7 +105,7 @@ mod tests {
     fn opts(name: &str) -> Options {
         Options {
             logo_name: name.to_owned(),
-            logo_source: format!("{name}.txt"),
+            logo_source: crate::export::logo_file_name(name),
             ..Default::default()
         }
     }
@@ -121,7 +133,34 @@ mod tests {
     #[test]
     fn it_points_at_the_logo_file_by_the_name_it_was_given() {
         let text = export(&plain(), &opts("wart-logo"));
-        assert!(text.contains("\"source\": \"wart-logo.txt\""), "got:\n{text}");
+        assert!(text.contains("\"source\": \"wart-logo.ansi\""), "got:\n{text}");
+    }
+
+    #[test]
+    fn a_windows_path_is_written_with_forward_slashes() {
+        // Regression: a raw `D:\dir\logo.ansi` inside a JSON string is not
+        // valid JSON — `\d` is an illegal escape — and fastfetch rejects the
+        // whole config rather than just that value.
+        let opts = Options {
+            logo_name: "logo".to_owned(),
+            logo_source: r"D:\Code\wart\logo.ansi".to_owned(),
+            ..Default::default()
+        };
+        let text = export(&plain(), &opts);
+
+        assert!(text.contains(r#""source": "D:/Code/wart/logo.ansi""#));
+        assert!(
+            !text.contains('\\'),
+            "a backslash must not reach the JSON body"
+        );
+
+        let stripped: String = text
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        serde_json::from_str::<serde_json::Value>(&stripped)
+            .expect("the config must still parse");
     }
 
     #[test]
