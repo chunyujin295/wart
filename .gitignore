@@ -13,3 +13,6 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Python bytecode from the logo tooling.
+__pycache__/
