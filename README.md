@@ -1,7 +1,7 @@
 # wart
 
 <p align="center">
-  <img src="./doc/img/logo-black.png" alt="icon" width="200">
+  <img src="./doc/img/logo.png" alt="icon" width="200">
 </p>
 
 
