@@ -59,18 +59,14 @@ jobs:
         include:
           - name: windows-x64
             os: windows-latest
-            shell: pwsh
           # 22.04 rather than 24.04: the binary links the glibc it is built
           # against, and the older one runs on more distributions.
           - name: linux-x64
             os: ubuntu-22.04
-            shell: bash
           - name: macos-arm64
             os: macos-latest
-            shell: bash
           - name: macos-x64
             os: macos-13
-            shell: bash
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +87,7 @@ jobs:
       # Same layout as `build.ps1` produces in dist/: the binary, the readme,
       # the licences, and an empty figlet/ directory to drop .flf files into.
       - name: Package
-        shell: ${{ matrix.shell }}
+        shell: pwsh
         run: |
           $stage = "wart-$env:RELEASE_NAME-${{ matrix.name }}"
           New-Item -ItemType Directory -Force -Path "$stage/figlet" | Out-Null
@@ -106,7 +102,7 @@ jobs:
         if: runner.os == 'Windows'
 
       - name: Package
-        shell: ${{ matrix.shell }}
+        shell: bash
         run: |
           stage="wart-${RELEASE_NAME}-${{ matrix.name }}"
           mkdir -p "$stage/figlet"
