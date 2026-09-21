@@ -6,6 +6,7 @@
 
 # Tooling scratch, not project source.
 /.claude
+/.codegraph
 *.log
 
 # OS clutter.
