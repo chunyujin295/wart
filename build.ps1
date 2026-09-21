@@ -18,17 +18,24 @@
 .PARAMETER Example
     After building, generate a few sample exports into dist/samples/.
 
+.PARAMETER Icons
+    Re-derive assets/icon/ from doc/img/logo.png before building. Only needed
+    after touching the logo; needs Python with Pillow. See tools/make-icons.py
+    for the options (edge, shadow, padding, ...).
+
 .EXAMPLE
     .\build.ps1
     .\build.ps1 -Mode quick -Run
     .\build.ps1 -Example
+    .\build.ps1 -Icons -Run
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('quick', 'test', 'release', 'debug')]
     [string]$Mode = 'release',
     [switch]$Run,
-    [switch]$Example
+    [switch]$Example,
+    [switch]$Icons
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +64,16 @@ $rustc = (rustc --version) 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'rustc not found on PATH. Install Rust from https://rustup.rs' }
 Write-Ok $rustc
 Write-Ok ((cargo --version) 2>&1)
+
+if ($Icons) {
+    Write-Step 'Icons'
+    $icons = Join-Path $PSScriptRoot 'tools\make-icons.py'
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { throw 'Python is needed to regenerate the icons (pip install pillow)' }
+    & $python.Source $icons
+    if ($LASTEXITCODE -ne 0) { throw 'icon generation failed' }
+    Write-Ok 'assets\icon\ refreshed from doc\img\logo.png'
+}
 
 if ($Mode -in @('test', 'release')) {
     Write-Step 'Tests'
