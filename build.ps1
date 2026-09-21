@@ -21,7 +21,7 @@
 .PARAMETER Icons
     Re-derive assets/icon/ from doc/img/logo.png before building. Only needed
     after touching the logo; needs Python with Pillow. See tools/make-icons.py
-    for the options (edge, shadow, padding, ...).
+    for the options (padding, --key, sizes, ...).
 
 .EXAMPLE
     .\build.ps1
