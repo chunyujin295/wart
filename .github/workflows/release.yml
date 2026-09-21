@@ -1,0 +1,160 @@
+name: Release
+
+# A tag drives this: pushing `v1.2.3` builds every platform, packages the
+# binary the way `build.ps1` does, and publishes the archives on the release
+# page. The workflow can also be dispatched by hand from the Actions tab, which
+# builds and uploads the same archives but publishes nothing — that is how to
+# check a release before tagging it.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# `gh release create` writes to the repository's releases.
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Tags name the archives after the tag; a dry run has none.
+  RELEASE_NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dry-run' }}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev
+
+      - run: rustup update stable && rustup default stable
+
+      - run: cargo test
+
+      # A tag that disagrees with the crate would ship a binary whose
+      # `--version` contradicts the release it is attached to.
+      - name: The tag must match Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml, which says $version"
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            shell: pwsh
+          # 22.04 rather than 24.04: the binary links the glibc it is built
+          # against, and the older one runs on more distributions.
+          - name: linux-x64
+            os: ubuntu-22.04
+            shell: bash
+          - name: macos-arm64
+            os: macos-latest
+            shell: bash
+          - name: macos-x64
+            os: macos-13
+            shell: bash
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev
+
+      - run: rustup update stable && rustup default stable
+
+      - name: Build
+        run: cargo build --release --locked
+
+      # Same layout as `build.ps1` produces in dist/: the binary, the readme,
+      # the licences, and an empty figlet/ directory to drop .flf files into.
+      - name: Package
+        shell: ${{ matrix.shell }}
+        run: |
+          $stage = "wart-$env:RELEASE_NAME-${{ matrix.name }}"
+          New-Item -ItemType Directory -Force -Path "$stage/figlet" | Out-Null
+          Copy-Item target/release/wart.exe "$stage/"
+          Copy-Item README.md "$stage/"
+          Copy-Item assets/licenses "$stage/licenses" -Recurse
+          Set-Content -Path "$stage/figlet/README.txt" -Encoding UTF8 -Value @'
+          Drop .flf FIGlet fonts here and they appear in the
+          font list alongside the 328 built-in ones. Run `wart --list-fonts` to confirm.
+          '@
+          Compress-Archive -Path $stage -DestinationPath "$stage.zip" -Force
+        if: runner.os == 'Windows'
+
+      - name: Package
+        shell: ${{ matrix.shell }}
+        run: |
+          stage="wart-${RELEASE_NAME}-${{ matrix.name }}"
+          mkdir -p "$stage/figlet"
+          cp target/release/wart "$stage/"
+          cp README.md "$stage/"
+          cp -r assets/licenses "$stage/licenses"
+          cat > "$stage/figlet/README.txt" <<'EOF'
+          Drop .flf FIGlet fonts here and they appear in the
+          font list alongside the 328 built-in ones. Run `wart --list-fonts` to confirm.
+          EOF
+          tar czf "$stage.tar.gz" "$stage"
+        if: runner.os != 'Windows'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wart-${{ matrix.name }}
+          path: |
+            wart-*.zip
+            wart-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `--generate-notes` reads the commits the tag covers.
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "wart $GITHUB_REF_NAME" \
+            --generate-notes \
+            artifacts/*

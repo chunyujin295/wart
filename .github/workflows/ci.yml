@@ -1,0 +1,40 @@
+name: CI
+
+# The everyday check: does it still build and pass its tests on the platforms
+# the release publishes for. `build.ps1` runs the same command locally.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      # One broken platform should not hide the state of the other.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # eframe links the windowing stack, and the test binary links eframe, so
+      # even a headless `cargo test` needs the usual X11/Wayland/GL headers.
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev
+
+      # The image's Rust may predate the 1.85 the crate needs.
+      - run: rustup update stable && rustup default stable
+
+      - run: cargo test

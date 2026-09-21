@@ -2,6 +2,8 @@
 name = "wart"
 version = "0.1.0"
 edition = "2021"
+# What the readme tells people to install, in the place cargo reads it.
+rust-version = "1.85"
 description = "Text to ASCII art, with Nerd Font symbols and gradient colors"
 
 [build-dependencies]
