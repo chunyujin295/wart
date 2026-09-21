@@ -1,0 +1,15 @@
+# Keep every text file on LF regardless of platform.
+#
+# This is not cosmetic here. The FIGlet fonts are parsed line by line at build
+# time, and the ANSI/text exports are line-oriented too, so a CR smuggled in by
+# a Windows checkout would end up inside the artwork. Which is the kind of
+# breakage that only shows up on someone else's machine.
+* text=auto eol=lf
+
+# Genuinely binary assets — never normalise these.
+*.ttf  binary
+*.otf  binary
+*.ico  binary
+*.png  binary
+*.gz   binary
+*.xz   binary

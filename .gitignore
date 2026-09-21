@@ -1,0 +1,14 @@
+# Build output.
+/target
+
+# Packaged output from build.ps1 — reproducible from the source at any time.
+/dist
+
+# Tooling scratch, not project source.
+/.claude
+*.log
+
+# OS clutter.
+Thumbs.db
+desktop.ini
+.DS_Store
