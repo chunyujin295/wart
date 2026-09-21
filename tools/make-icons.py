@@ -135,6 +135,7 @@ def preview(frames: list[tuple[int, Image.Image]], path: Path) -> None:
             tile = Image.new("RGBA", (cell, cell), (background, background, background, 255))
             tile.alpha_composite(by_size[size], ((cell - size) // 2, (cell - size) // 2))
             sheet.paste(tile.convert("RGB"), (8 + col * cell, 8 + row * cell))
+    path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(path)
 
 

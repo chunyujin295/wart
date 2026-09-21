@@ -316,7 +316,7 @@ fastfetch --gen-config-full full.jsonc
 3. **看效果。**
 
    ```sh
-   python tools/make-icons.py --preview sheet.png   # 各尺寸 × 浅底/深底对照
+   python tools/make-icons.py --preview target/icon.png   # 各尺寸 × 浅底/深底对照
    ```
 
    exe 的图标要**重新构建**才会变（它是 PE 资源，运行时读不到）；窗口/任务栏图标和界面左上角那个直接读 `icon.png`，构建后启动就是新的。资源管理器有时缓存旧图标，换个目录看图或重启 `explorer` 即可。
