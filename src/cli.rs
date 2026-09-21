@@ -40,7 +40,9 @@ pub struct Args {
     #[arg(long, default_value_t = 100)]
     pub cols: usize,
 
-    /// Block mode coverage cutoff for dot charsets, 0.0 to 1.0. Lower is denser.
+    /// Block mode coverage cutoff, 0.0 to 1.0. A sub-cell counts as ink when any
+    /// pixel in it reaches this; lower is denser. Applies to the charsets that
+    /// threshold: braille, blocks, half block and quarter blocks.
     #[arg(long, default_value_t = 0.5)]
     pub threshold: f32,
 
@@ -123,9 +125,15 @@ impl From<ModeArg> for Mode {
 /// `clap::ValueEnum` mirror of [`charset::Charset`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum CharsetArg {
+    /// Density ramp `" .:-=+*#%@`, the coarsest texture of the seven.
     Ascii,
+    /// Solid blocks `█`: one cell thick, no shades in between.
     Blocks,
+    /// Braille dots, 2x4 per cell: the highest resolution available.
     Braille,
+    /// Half blocks `▀ ▄ █`: two independently colored pixels per cell where the
+    /// two halves differ, one full block where they do not. Needs a terminal
+    /// that draws background colors.
     Halfblock,
     /// Quarter blocks: a 2x2 grid of sub-cells per character.
     Quadrant,
@@ -180,9 +188,10 @@ pub enum IconStyleArg {
     Shape,
     /// Dots: the crispest icon, but a texture unlike the letters.
     Braille,
-    /// Shade blocks: a solid silhouette in five steps of darkness.
+    /// Solid blocks: a silhouette one cell thick, with no shades in between.
     Blocks,
-    /// Half blocks: two independently coloured pixels per cell. Needs a
+    /// Half blocks: two independently coloured pixels per cell where the two
+    /// halves differ — a solid colour draws one full block instead. Needs a
     /// terminal that renders background colours.
     Halfblock,
     /// Quarter blocks: four sub-cells per character, no background colour

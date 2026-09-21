@@ -50,7 +50,7 @@ pub enum IconStyle {
     /// 2x4 dots per cell. The crispest icon, at the cost of a dot texture that
     /// is plainly not the one the letters are drawn in.
     Braille,
-    /// Shade blocks `░▒▓█`: a solid silhouette in five steps of darkness.
+    /// Solid blocks `█`: a silhouette drawn one cell thick, chunky and crisp.
     Blocks,
     /// Upper half blocks, with an independent color per half.
     HalfBlock,
@@ -63,6 +63,18 @@ pub enum IconStyle {
     /// dot grid does, so the result is only legible when drawn much larger.
     LineArt,
 }
+
+/// Rows of character cells an icon is drawn into at minimum, whatever the
+/// banner's height.
+///
+/// [`IconStyle::row_scale`] alone ties the icon to the letters, which reads well
+/// until the font is a short one: a one-row font asks for a two-row icon, and no
+/// charset can draw a figure in two rows. Past that point a smaller icon is not
+/// a smaller version of the same picture, it is an unrecognisable smudge, so the
+/// icon is given the height it needs to be read and allowed to overhang. Ten
+/// rows is where the styles in `IconStyle::ALL` — including the sparse ones —
+/// start resolving a Nerd Font icon's interior.
+const MIN_ICON_ROWS: usize = 10;
 
 impl IconStyle {
     pub const ALL: [IconStyle; 6] = [
@@ -88,11 +100,17 @@ impl IconStyle {
     /// How tall the icon is drawn, as a multiple of the banner's height.
     ///
     /// Measured by rendering one icon across a range of sizes and finding where
-    /// it becomes recognisable. A six-row banner gives an icon 24x24 pixels:
-    /// the "comfortable" band for screen icons, but short of the 32x32 that a
-    /// figure with interior detail wants, so every style is drawn with some
-    /// overhang — which also reads as a deliberate emblem rather than a
-    /// misalignment.
+    /// it becomes recognisable. The height asked for here is the height the
+    /// drawn figure gets, not the height of an em box containing it — see
+    /// [`block::render_to_rows`], which spends it all on ink. A six-row banner
+    /// asks for 9 rows of cells, which [`MIN_ICON_ROWS`] lifts to 10: each cell
+    /// is 2 source pixels tall for the block charsets, so a good 20x20 pixels of
+    /// figure.
+    ///
+    /// Every style is drawn with some overhang, which also reads as a deliberate
+    /// emblem rather than a misalignment, and the shortest banners keep that
+    /// floor rather than the scale, so a small font cannot ask for an illegible
+    /// icon.
     ///
     /// Line art needs the most room, because a stroke carries far less
     /// information per cell than a matched glyph or a filled dot does.
@@ -165,7 +183,9 @@ fn push_banner(font: &FIGlet, ascii: &mut String, out: &mut Vec<Piece>) {
     ascii.clear();
 }
 
-/// Draw characters the font lacks as ASCII art at the banner's own height.
+/// Draw characters the font lacks as ASCII art, at the height the icon style
+/// asks for — the banner's height scaled, and never less than
+/// [`MIN_ICON_ROWS`].
 ///
 /// A literal cell would be one row tall next to a six-row banner and read as a
 /// speck, so the glyph is rasterized instead.
@@ -182,16 +202,44 @@ fn push_literal(
     let text: String = literal.iter().collect();
     let opts = block::Options {
         charset: icon_style.charset(),
+        // Unused: the height is what an icon is fitted to, and the width
+        // follows from the glyph's own proportions.
         cols: 0,
+        // The cutoff is fixed rather than taken from `--threshold`: an icon is
+        // drawn at one particular size, and this is the value the styles were
+        // measured at. The default is the same value, so a caller that wants to
+        // tune the cutoff for *text* is not surprised by the icons.
         threshold: 0.5,
         // The glyph art is colored by the shared pass afterwards, alongside the
-        // banner; the style is only here to fill the struct.
+        // banner; the style is only here to fill the struct — except for
+        // half-block, which picks its two colors while the cell is built.
         style: style.clone(),
     };
 
-    let rows = ((height as f32) * icon_style.row_scale()).round().max(1.0) as usize;
+    // Legibility sets the floor, the banner sets the target: below a certain
+    // size the figure stops being a small picture of the icon and becomes a
+    // smudge, and a smudge is worth neither the rows it occupies nor the
+    // confusion of sitting next to the letters.
+    let rows = ((height as f32) * icon_style.row_scale())
+        .round()
+        .max(MIN_ICON_ROWS as f32) as usize;
     match block::render_to_rows(&text, rows, &opts) {
-        Ok(art) => out.push(Piece::Block(art.cells)),
+        Ok(mut art) => {
+            // The icon sampled its own colors on its own grid, and it is about
+            // to be spliced into a line whose width it cannot know. Dropping the
+            // foreground hands every cell to the shared color pass, which
+            // samples the assembled artwork instead — so the icon continues the
+            // gradient around it rather than carrying a squeezed copy of the
+            // whole ramp. A background is kept: it is what marks a half-block
+            // cell whose halves carry two different colors, and those the color
+            // pass re-samples in place.
+            for cell in art.cells.iter_mut().flatten() {
+                if cell.bg.is_none() {
+                    cell.fg = None;
+                }
+            }
+            out.push(Piece::Block(art.cells))
+        }
         // Rasterizing should not fail; a literal cell is a poor but honest
         // fallback if it ever does.
         Err(_) => out.push(Piece::Literal(std::mem::take(literal))),
@@ -444,21 +492,84 @@ mod tests {
     }
 
     #[test]
-    fn an_icon_is_drawn_at_the_banners_height() {
+    fn an_icon_is_drawn_at_least_as_tall_as_the_banner() {
         // The point of rasterizing: a literal glyph was one cell tall and read
-        // as a speck beside a six-row banner.
+        // as a speck beside a six-row banner. The icon overhangs it — 1.5x the
+        // banner or [`MIN_ICON_ROWS`], whichever is more — so the bar here is
+        // only that it is never the smaller of the two.
         let font = standard();
         let icon = art_of(&font, &ICON.to_string());
         let banner = art_of(&font, "A");
-        // Not exactly equal: the glyph's ink does not reach the em box edges, so
-        // trimming leaves it a row short. "Comparable to the letters" is the bar.
         assert!(
-            icon.height() * 2 >= banner.height(),
+            icon.height() >= banner.height(),
             "icon is {} rows against a {}-row banner",
             icon.height(),
             banner.height()
         );
         assert!(icon.width() > 2, "should be several cells wide, was {}", icon.width());
+    }
+
+    #[test]
+    fn an_icon_takes_its_colors_from_the_line_not_from_itself() {
+        // Regression: half-block bakes its cells' colors while the icon is
+        // being drawn, on the icon's own grid. Left in place, that painted a
+        // second copy of the gradient squeezed into the icon's own width, and
+        // the seam where it rejoined the line was plain to see.
+        let font = standard();
+        let ramp = ColorStyle::linear(crate::model::Rgb::new(255, 0, 0), crate::model::Rgb::new(0, 0, 255), 0.0);
+        let mut art = render(&font, &format!("{ICON}HHHHHHHH"), &ramp, IconStyle::HalfBlock)
+            .expect("render");
+        // What the caller does once the line is assembled; the icon's cells are
+        // expected to be left for it.
+        crate::color::colorize(&mut art, &ramp);
+
+        let widest = art
+            .cells
+            .iter()
+            .max_by_key(|r| r.iter().filter(|c| c.fg.is_some()).count())
+            .expect("a row");
+        let reds: Vec<u8> = widest.iter().filter_map(|c| c.fg.map(|c| c.r)).collect();
+        assert!(reds.len() > 20, "expected a long colored row, got {}", reds.len());
+
+        let biggest_step = reds.windows(2).map(|w| w[0].abs_diff(w[1])).max().unwrap_or(0);
+        assert!(
+            biggest_step <= 20,
+            "the ramp jumps by {biggest_step} between neighbouring cells: {reds:?}"
+        );
+    }
+
+    #[test]
+    fn a_one_row_font_still_gets_a_legible_icon() {
+        // `row_scale` alone would ask a one-row banner for a two-row icon, which
+        // is not a small picture of the icon but a smudge. The floor gives the
+        // figure the rows it needs and lets it overhang instead.
+        let font = fonts::load_builtin("Term").expect("Term font");
+        let banner = art_of(&font, "Hi");
+        let art = art_of(&font, &ICON.to_string());
+
+        assert!(
+            art.height() >= MIN_ICON_ROWS - 1,
+            "a {}-row figure is not legible",
+            art.height()
+        );
+        assert!(art.width() >= 8, "a {}-column figure is not legible", art.width());
+        assert!(
+            art.height() > banner.height() * 2,
+            "the icon should overhang a {}-row banner, not match it",
+            banner.height()
+        );
+    }
+
+    #[test]
+    fn a_one_row_font_keeps_the_icon_beside_the_letters() {
+        // Overhanging is fine; landing on its own line is not. The line is as
+        // tall as the icon, and the banner is centred inside it.
+        let font = fonts::load_builtin("Term").expect("Term font");
+        let with = art_of(&font, &format!("{ICON}Hi"));
+        let without = art_of(&font, "Hi");
+        assert!(with.width() > without.width(), "the letters were pushed off");
+        let blank = |r: &Vec<Cell>| r.iter().all(|c| c.is_blank());
+        assert!(with.cells.iter().any(|r| !blank(r)), "nothing was drawn");
     }
 
     #[test]
@@ -513,9 +624,9 @@ mod tests {
 
     #[test]
     fn the_banner_is_centred_against_a_taller_icon() {
-        // The icon is drawn at 1.5x the banner's height, so the line is as tall
-        // as the icon and the letters have to sit in the middle of it rather
-        // than at the top.
+        // The icon is drawn taller than the banner, so the line is as tall as
+        // the icon and the letters have to sit in the middle of it rather than
+        // at the top.
         let font = standard();
         let banner_height = art_of(&font, "A").height();
         let art = art_of(&font, &format!("{ICON}A"));

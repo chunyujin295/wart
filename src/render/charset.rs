@@ -9,7 +9,8 @@ pub enum Charset {
     /// Classic density ramp: `" .:-=+*#%@"`.
     #[default]
     AsciiRamp,
-    /// Shade blocks `░▒▓█`, the cleanest look at low resolution.
+    /// Solid blocks `█`: one cell, filled or empty. The chunkiest look, and
+    /// the one that survives being drawn small.
     Blocks,
     /// Braille dots: 2x4 pixels per cell, the highest resolution available.
     Braille,
@@ -85,14 +86,23 @@ impl Charset {
     pub fn needs_color(self) -> bool {
         matches!(self, Charset::HalfBlock)
     }
+
+    /// Whether the coverage cutoff (`Options::threshold`) changes this
+    /// charset's output.
+    ///
+    /// These are the charsets that decide each sub-cell with a yes/no question
+    /// — is there ink here — rather than shading it with a ramp. It is what the
+    /// UI checks to decide whether to offer the cutoff at all.
+    pub fn uses_threshold(self) -> bool {
+        matches!(
+            self,
+            Charset::Braille | Charset::Blocks | Charset::HalfBlock | Charset::Quadrant
+        )
+    }
 }
 
 /// Density ramp from lightest to darkest.
 pub const ASCII_RAMP: &[char] = &[' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'];
-
-/// Shade ramp. Four distinct densities, so it reads more cleanly than the
-/// ASCII ramp at low resolution.
-pub const BLOCK_RAMP: &[char] = &[' ', '░', '▒', '▓', '█'];
 
 /// Pick the ramp character for a coverage value in `0.0..=1.0`.
 pub fn ramp_char(ramp: &[char], coverage: f32) -> char {
@@ -259,6 +269,19 @@ mod tests {
     #[test]
     fn quadrant_masks_ignore_bits_above_the_fourth() {
         assert_eq!(quadrant_char(0b1111_1111), quadrant_char(0b1111));
+    }
+
+    #[test]
+    fn only_the_cutting_charsets_use_the_cutoff() {
+        // The UI offers the cutoff for exactly these. A ramp answers with a
+        // shade and the matcher with a shape, and a cutoff on either would only
+        // quietly change its weight.
+        for cs in [Charset::Braille, Charset::Blocks, Charset::HalfBlock, Charset::Quadrant] {
+            assert!(cs.uses_threshold(), "{} should offer the cutoff", cs.label());
+        }
+        for cs in [Charset::AsciiRamp, Charset::Shape, Charset::LineArt] {
+            assert!(!cs.uses_threshold(), "{} should not offer the cutoff", cs.label());
+        }
     }
 
     #[test]

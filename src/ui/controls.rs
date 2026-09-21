@@ -216,7 +216,7 @@ fn block_options(app: &mut WartApp, ui: &mut egui::Ui) {
     });
 
     // The threshold only means something for charsets that cut rather than ramp.
-    let threshold_matters = matches!(app.charset, Charset::Braille | Charset::HalfBlock);
+    let threshold_matters = app.charset.uses_threshold();
     ui.add_enabled_ui(threshold_matters, |ui| {
         ui.horizontal(|ui| {
             ui.label(app.t().cutoff);
