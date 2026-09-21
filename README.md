@@ -1,8 +1,9 @@
 # wart
 
 <p align="center">
-  <img src="./doc/img/logo.png" alt="icon" width="200">
+  <img src="./doc/img/logo-black.png" alt="icon" width="200">
 </p>
+
 
 把文本转成 ASCII 艺术字，支持 Nerd Font 符号和渐变配色。为 Neovim dashboard 和 fastfetch 的 logo 而做。
 
