@@ -28,6 +28,8 @@ wart --text HELLO --font slant --gradient "#ff5f5f,#ffd75f" --out logo.txt
 
 需要 Rust 1.85+，无系统依赖——字体、FIGlet 字库、图标元数据都编进了二进制。
 
+换应用图标（exe / 任务栏 / 界面左上角那个）见[图标](#图标)。
+
 ## 发布
 
 推 tag 即发布，其余交给 GitHub Actions（`.github/workflows/release.yml`）：
@@ -297,19 +299,55 @@ fastfetch --gen-config-full full.jsonc
 
 `.ico` 是**多尺寸**的（16/24/32/48/64/128/256），Windows 会挑最接近的那个——比让它缩放一张大图清晰。
 
-改图标由 `tools/make-icons.py` 负责：读 `doc/img/logo.png`，写出上面那两个文件。`build.ps1 -Icons` 会在构建前跑一遍，也可以单独跑：
+### 换 logo
 
-```sh
-python tools/make-icons.py                       # 默认：白包边 6px@256
-python tools/make-icons.py --edge 0 --shadow 10  # 不要包边，改成投影
-python tools/make-icons.py --preview sheet.png   # 渲染浅底/深底对照图
-```
+1. **换图。** 把新图覆盖到 `doc/img/logo.png`。透明底最省事；如果拿到的是带纯色底的导出图，下一步加 `--key` 抠掉。
 
-需要 Python 和 Pillow（`pip install pillow`）——只在改 logo 时用得上，不是构建依赖，所以没有编进 cargo。
+2. **生成。**
 
-脚本做的判断：**白包边**是默认，因为 logo 是深色的，落在深色任务栏或深色主题上时只剩霓虹描边，一层白边就能把轮廓从背景里分出来（`--edge 0` 关掉，`--shadow` 换成投影，两者可以同时开）。包边宽度按图标尺寸缩放，16px 上是 1px、256px 上是 6px——固定像素的话，小尺寸上一条细边会消失、大尺寸上又太粗。取景上先裁到墨迹范围、居中放进正方形、再缩放：原图留了不对称的空白（左边 83px、右边 31px），直接缩放会让图标偏一边。
+   ```sh
+   python tools/make-icons.py        # 写出 assets/icon/icon.png 和 icon.ico
+   ```
 
-原图和图标都是**透明底**。如果新 logo 是带纯色底的导出图，`--key '#ffffff'` 会从四角泛洪把它去掉（只去连到边缘的那一片，图形内部同色的高光不会被误伤）。
+   或者构建时顺带跑：`.\build.ps1 -Icons`，它在 `cargo build` 之前刷新图标，链进 exe 的就是新的。需要 Python 和 Pillow（`pip install pillow`）——只在换 logo 时用得上，不是构建依赖，所以没编进 cargo。
+
+3. **看效果。**
+
+   ```sh
+   python tools/make-icons.py --preview sheet.png   # 各尺寸 × 浅底/深底对照
+   ```
+
+   exe 的图标要**重新构建**才会变（它是 PE 资源，运行时读不到）；窗口/任务栏图标和界面左上角那个直接读 `icon.png`，构建后启动就是新的。资源管理器有时缓存旧图标，换个目录看图或重启 `explorer` 即可。
+
+4. **提交** `assets/icon/icon.png` 和 `assets/icon/icon.ico`。脚本不会改 `doc/img/logo.png`。
+
+### 生成参数
+
+都有默认值，不改也能跑：
+
+| 参数 | 默认 | 作用 |
+|---|---|---|
+| `--source` | `doc/img/logo.png` | 母版图，可以指向别处 |
+| `--edge N` | `6` | 轮廓外白边宽度，按 256px 折算；0 表示不加 |
+| `--edge-color` | `#ffffff` | 白边颜色 |
+| `--shadow N` | `0` | 图形后方投影的柔化半径（按 256px 折算），0 表示不加；可与 `--edge` 同时开 |
+| `--padding F` | `0.04` | 图形四周留白，占边长的比例 |
+| `--key COLOR` | 无 | 先把某个纯色背景抠掉，如 `--key '#ffffff'` |
+| `--key-tolerance` | `8` | 抠背景的容差 |
+| `--sizes` | `16,24,32,48,64,128,256` | ICO 里包含哪些尺寸 |
+| `--preview PATH` | 无 | 额外输出一张对照图 |
+
+抠背景走的是**从四角泛洪**，不是全局换色：图形内部与背景同色的高光（眼睛、亮部）不会被误伤。
+
+### 为什么默认是这样
+
+**白包边。** logo 是深色的，落在深色任务栏或深色主题上时只剩霓虹描边；一层白边就把轮廓从背景里分出来。纯投影在深色底上等于没有，不加则完全依赖霓虹线——四种组合都渲染比对过（`--preview` 就是当时用的那张图）。
+
+**包边按尺寸缩放。** 16px 上是 1px、256px 上是 6px。写死像素的话，小尺寸上细边会消失，大尺寸上又糊成一圈。
+
+**先裁到墨迹、再居中。** 母版图的留白常常不对称（当前这张左边 83px、右边只有 31px），直接缩放会让图标偏一边。
+
+**透明底。** 母版和图标都不带背景方块，落在任何底色上都不突兀。
 
 ## 字体
 

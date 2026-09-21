@@ -67,10 +67,12 @@ Write-Ok ((cargo --version) 2>&1)
 
 if ($Icons) {
     Write-Step 'Icons'
-    $icons = Join-Path $PSScriptRoot 'tools\make-icons.py'
+    # Not `$icons`: PowerShell matches parameter names case-insensitively, so
+    # that name is the switch itself and assigning a path to it is an error.
+    $iconTool = Join-Path $PSScriptRoot 'tools\make-icons.py'
     $python = Get-Command python -ErrorAction SilentlyContinue
     if (-not $python) { throw 'Python is needed to regenerate the icons (pip install pillow)' }
-    & $python.Source $icons
+    & $python.Source $iconTool
     if ($LASTEXITCODE -ne 0) { throw 'icon generation failed' }
     Write-Ok 'assets\icon\ refreshed from doc\img\logo.png'
 }
