@@ -65,8 +65,11 @@ jobs:
             os: ubuntu-22.04
           - name: macos-arm64
             os: macos-latest
-          - name: macos-x64
-            os: macos-13
+          # No Intel mac. `macos-13` was the last x86_64 image and GitHub
+          # retired it in December 2025, so that job sat in the queue for a
+          # runner that was never coming — and since the release needs every
+          # job, nothing was published at all. `macos-15-intel` is the current
+          # x86_64 image if that coverage is wanted back.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

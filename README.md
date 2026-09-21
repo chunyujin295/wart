@@ -39,17 +39,19 @@ wart --text HELLO --font slant --gradient "#ff5f5f,#ffd75f" --out logo.txt
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-工作流会先跑测试、核对 tag 与 `Cargo.toml` 的 version 一致（不一致直接失败，免得发出去的二进制 `--version` 和 release 对不上），然后构建四个平台并附上校验和：
+工作流会先跑测试、核对 tag 与 `Cargo.toml` 的 version 一致（不一致直接失败，免得发出去的二进制 `--version` 和 release 对不上），然后构建三个平台并附上校验和：
 
 | 平台 | 产物 |
 |---|---|
 | `windows-x64` | `wart-vX.Y.Z-windows-x64.zip` |
 | `linux-x64` | `wart-vX.Y.Z-linux-x64.tar.gz`（在 22.04 上构建，glibc 要求低，能在更多发行版上跑） |
-| `macos-arm64` / `macos-x64` | `wart-vX.Y.Z-macos-*.tar.gz` |
+| `macos-arm64` | `wart-vX.Y.Z-macos-arm64.tar.gz` |
 
 每个包里的内容和 `dist\` 一致：二进制、README、许可证、空的 `figlet\` 目录。
 
-**不想先打 tag 试一把**：在 Actions 页手动跑 `Release`（`workflow_dispatch`）——同样构建四个平台并上传产物，只是不发布 release、也不需要 tag。
+**没有 Intel mac 的包**：`macos-13` 是最后一个 x86_64 macOS 镜像，GitHub 已在 2025 年 12 月退役它，用它的 job 会一直排队等一个不会来的 runner——而 release 需要所有平台都成功，结果就是一个都发不出来。Apple Silicon 上可以用 Rosetta 跑，或者本地 `cargo build --release`；想把 Intel 加回来，把 `os` 换成 `macos-15-intel`（当前的 x86_64 镜像）即可。
+
+**不想先打 tag 试一把**：在 Actions 页手动跑 `Release`（`workflow_dispatch`）——同样构建三个平台并上传产物，只是不发布 release、也不需要 tag。
 
 两点注意：macOS 的二进制没有签名，下载后首次运行需要 `xattr -d com.apple.quarantine wart`（或右键打开）；Linux 包需要 glibc 2.35+。
 
