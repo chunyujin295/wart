@@ -146,11 +146,18 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Create the release
+      # Re-running has to be safe: an attempt that failed after creating the
+      # release leaves one behind, and what it needs then is the assets, not a
+      # second release.
+      - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "wart $GITHUB_REF_NAME" \
-            --generate-notes \
-            artifacts/*
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "wart $GITHUB_REF_NAME" \
+              --generate-notes \
+              artifacts/*
+          fi
